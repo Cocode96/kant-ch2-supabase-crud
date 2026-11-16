@@ -1,4 +1,4 @@
-"""SDK ȣ�� ��� ȸ�� �׽�Ʈ. ���� Supabase ������ ������� �ʴ´�."""
+"""SDK 호출 경로 회귀 테스트. 실제 Supabase 실행을 대신하지 않는다."""
 import unittest
 from unittest.mock import MagicMock
 from crud import Store
@@ -14,8 +14,8 @@ class CrudTests(unittest.TestCase):
 
     def test_all_entities_have_four_executed_operations(self):
         examples = {
-            "members": {"name": "ȸ��", "email": "a@example.test"},
-            "products": {"title": "��ǰ", "price": 100},
+            "members": {"name": "회원", "email": "a@example.test"},
+            "products": {"title": "상품", "price": 100},
             "orders": {"member_id": 1, "product_id": 1, "quantity": 1},
         }
         for entity, data in examples.items():
@@ -42,7 +42,7 @@ class CrudTests(unittest.TestCase):
 
     def test_missing_member_fields_rejected(self):
         with self.assertRaises(ValueError):
-            self.store.create("members", {"name": "ȸ��"})
+            self.store.create("members", {"name": "회원"})
 
 if __name__ == "__main__":
     unittest.main()

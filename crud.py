@@ -1,4 +1,4 @@
-"""ȸ��/��ǰ/�ֹ��� ������ CRUD �� ����. Supabase SDK ȣ���� �� ������ �д´�."""
+"""회원/상품/주문에 공통인 CRUD 네 동작. Supabase SDK 호출을 한 곳에서 읽는다."""
 FIELDS = {
     "members": {"name", "email"},
     "products": {"title", "price", "stock"},
@@ -16,14 +16,14 @@ class Store:
 
     def table(self, entity):
         if entity not in FIELDS:
-            raise ValueError("members, products, orders �� �����ϼ���.")
+            raise ValueError("members, products, orders 중 선택하세요.")
         return self.client.table("practice_" + entity)
 
     def validate(self, entity, data, creating=False):
         if entity not in FIELDS or not data or set(data) - FIELDS[entity]:
-            raise ValueError("��� �ְų� ������� ���� �ʵ��Դϴ�.")
+            raise ValueError("비어 있거나 허용하지 않은 필드입니다.")
         if creating and REQUIRED[entity] - set(data):
-            raise ValueError("�ʼ� �ʵ尡 �����ϴ�.")
+            raise ValueError("필수 필드가 없습니다.")
 
     def create(self, entity, data):
         self.validate(entity, data, creating=True)
@@ -37,12 +37,12 @@ class Store:
 
     def update(self, entity, row_id, data):
         if not isinstance(row_id, int) or row_id <= 0:
-            raise ValueError("���� ��� ID�� �ʿ��մϴ�.")
+            raise ValueError("수정 대상 ID가 필요합니다.")
         self.validate(entity, data)
         return self.table(entity).update(data).eq("id", row_id).execute().data
 
     def delete(self, entity, row_id):
         if not isinstance(row_id, int) or row_id <= 0:
-            raise ValueError("���� ��� ID�� �ʿ��մϴ�.")
+            raise ValueError("삭제 대상 ID가 필요합니다.")
         return self.table(entity).delete().eq("id", row_id).execute().data
 

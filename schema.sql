@@ -1,4 +1,4 @@
--- �� ���� �׽�Ʈ ������Ʈ������ ����. ���� �� ���̺��� �̸��� �и��Ѵ�.
+-- 새 개인 테스트 프로젝트에서만 실행. 기존 팀 테이블과 이름을 분리한다.
 create table public.practice_members (
     id bigint generated always as identity primary key,
     owner_id uuid not null default auth.uid() references auth.users(id),
@@ -15,7 +15,7 @@ create table public.practice_products (
     stock integer not null default 0 check (stock >= 0),
     unique (id, owner_id)
 );
--- �ּ� ����: �ֹ� �� ���� ��ǰ �� ������ �ֹ��Ѵ�.
+-- 최소 예제: 주문 한 건은 상품 한 종류를 주문한다.
 create table public.practice_orders (
     id bigint generated always as identity primary key,
     owner_id uuid not null default auth.uid() references auth.users(id),
