@@ -1,0 +1,9 @@
+[project]
+name = "seokho-db-crud"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["supabase>=2.31,<3", "python-dotenv>=1.2,<2"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
