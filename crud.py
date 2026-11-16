@@ -36,13 +36,12 @@ class Store:
         return query.order("id").execute().data
 
     def update(self, entity, row_id, data):
-        if not isinstance(row_id, int) or row_id <= 0:
+        if type(row_id) is not int or row_id <= 0:
             raise ValueError("수정 대상 ID가 필요합니다.")
         self.validate(entity, data)
         return self.table(entity).update(data).eq("id", row_id).execute().data
 
     def delete(self, entity, row_id):
-        if not isinstance(row_id, int) or row_id <= 0:
+        if type(row_id) is not int or row_id <= 0:
             raise ValueError("삭제 대상 ID가 필요합니다.")
         return self.table(entity).delete().eq("id", row_id).execute().data
-

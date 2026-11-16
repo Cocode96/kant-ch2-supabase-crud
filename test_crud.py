@@ -36,9 +36,11 @@ class CrudTests(unittest.TestCase):
         for patch in [{"owner_id": "someone"}, {"id": 3}, {}]:
             with self.assertRaises(ValueError):
                 self.store.update("members", 1, patch)
-        for row_id in [None, 0, -1]:
+        for row_id in [None, 0, -1, True, False, '1', 1.5]:
             with self.assertRaises(ValueError):
                 self.store.delete("orders", row_id)
+            with self.assertRaises(ValueError):
+                self.store.update("orders", row_id, {"quantity": 1})
 
     def test_missing_member_fields_rejected(self):
         with self.assertRaises(ValueError):
@@ -46,4 +48,3 @@ class CrudTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
