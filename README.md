@@ -2,7 +2,7 @@
 
 Python과 Supabase SDK로 쇼핑몰의 회원, 상품, 주문을 생성, 조회, 수정, 삭제하는 CH2 과제다. uv로 의존성을 고정하고 데이터 무결성은 PostgreSQL 제약조건, 사용자별 접근은 RLS로 관리한다.
 
-**검증 상태:** SDK 호출 테스트 4개와 격리된 로컬 PGlite의 CRUD, 제약조건, RLS, COMMIT/ROLLBACK 검증을 통과했다. 실제 Supabase 프로젝트의 SDK 실행 및 CRUD 캡처는 아직 확보하지 않았다. 아래 로컬 검증을 원격 실행 증거로 보지 않는다.
+**검증 상태:** 2026-11-16 실제 Supabase `kant-ch2-practice`에서 회원, 상품, 주문의 생성/조회/수정/삭제와 삭제 후 정리를 통과했다. 실제 PK/FK, 생성/조회, 수정, 삭제 화면과 [실행 로그](evidence/live-verification.jsonl)를 아래에 첨부했다. 실제 Supabase 임시 테이블의 트랜잭션 보충 검증 5개, SDK 호출 테스트 4개, 로컬 PGlite의 제약조건/RLS/COMMIT/ROLLBACK 검증도 통과했다.
 
 ## 실행
 
@@ -28,13 +28,15 @@ uv run --locked python demo.py
 
 키와 비밀번호는 Git에 포함하지 않는다. 로그인된 사용자 권한으로 검증하므로 service-role 키를 사용하지 않는다. 생성 SQL은 기존 테이블을 덮어쓰는 마이그레이션이 아니며 같은 프로젝트에서 중복 실행하지 않는다.
 
+`demo.py`는 이미 설정된 프로세스 환경변수를 `.env`보다 우선 사용하므로, 실행 전 네 항목이 같은 실습 프로젝트와 계정인지 확인한다.
+
 ## 테이블과 관계
 
 | 테이블 | PK | 데이터 | FK / 제약조건 |
 | --- | --- | --- | --- |
 | practice_members | id, bigint identity | name, email, owner_id | owner_id → auth.users.id, 사용자별 email 유일, 이름 1~80자 |
 | practice_products | id, bigint identity | title, price, stock, owner_id | owner_id → auth.users.id, 제목 1~100자, 가격과 재고 0 이상 |
-| practice_orders | id, bigint identity | member_id, product_id, quantity, status, created_at, owner_id | (member_id, owner_id) → practice_members(id, owner_id), (product_id, owner_id) → practice_products(id, owner_id), 수량 양수 |
+| practice_orders | id, bigint identity | member_id, product_id, quantity, status, created_at, owner_id | owner_id → auth.users.id, (member_id, owner_id) → practice_members(id, owner_id), (product_id, owner_id) → practice_products(id, owner_id), 수량 양수 |
 
 주문 상태는 `pending / paid / cancelled`로 제한한다. 주문이 참조하는 회원과 상품은 먼저 삭제할 수 없다(`ON DELETE RESTRICT`). 삭제 시에는 주문을 먼저 지운다.
 
@@ -68,6 +70,8 @@ RLS의 `USING`은 조회/수정/삭제할 기존 행을, `WITH CHECK`는 생성/
 
 실패 구문과 ROLLBACK은 같은 세션에서 구분해서 실행한다. 연결을 교체하면 임시 테이블과 진행 중인 트랜잭션 상태를 이어받을 수 없다.
 
+위 원본 스크립트의 실패 후 별도 ROLLBACK 흐름은 로컬 PGlite에서 검증했다. 실제 Supabase SQL Editor에서는 [보충 SQL 배치](evidence/live-transaction.sql)를 실행하여 명시적 COMMIT/ROLLBACK과 PL/pgSQL 예외 블록의 복구를 확인했다. 보충 배치의 실행 범위와 실제 결과는 아래 트랜잭션 캡처에 정리했다.
+
 ## 확인 결과와 제출 증거
 
 2026-11-16 확인:
@@ -76,8 +80,61 @@ RLS의 `USING`은 조회/수정/삭제할 기존 행을, `WITH CHECK`는 생성/
 | --- | --- |
 | Python unittest | 4개 통과. 세 엔티티의 SDK 호출, ID 필터, 소유자 필드 주입 차단, 잘못된 ID와 필수값 검사 |
 | 로컬 PGlite | 세 테이블 CRUD, FK 삭제 제한, 수량 CHECK, A/B 사용자 격리 통과 |
-| SQL 실패 시나리오 | COMMIT 뒤 8, 실패 트랜잭션 내부 5, ROLLBACK 뒤 8 확인 |
-| 실제 Supabase Auth / SDK | 미검증 |
-| 실제 CRUD 화면 캡처 | 미확보 |
+| 로컬 SQL 실패 시나리오 | PGlite에서 COMMIT 뒤 8, 실패 트랜잭션 내부 5, ROLLBACK 뒤 8 확인 |
+| 실제 Supabase SQL 보충 배치 | 초기값 10, COMMIT 뒤 8, 명시적 ROLLBACK 뒤 8, CHECK SQLSTATE `23514`, 예외 블록 복구 뒤 8의 5개 결과 모두 통과 |
+| 실제 Supabase Auth / SDK | 합성 A/B 계정 로그인 성공. 공개 키와 사용자 세션으로 회원/상품/주문 각각 CRUD 통과 |
+| 실제 Supabase 회원별 권한 | 같은 실행의 `shop_todos`에서 양방향 타인 조회/수정/삭제 차단 6개, 소유자 위조 INSERT/UPDATE 거부 2개 통과 |
+| 실제 CRUD 화면 캡처 | 아래 5장. PK/FK/RLS 설정, 생성/조회, 수정값, 삭제 후 세 테이블의 해당 ID가 0건임을 확인 |
+| 테스트 데이터 정리 | 이번 실행에서 생성한 DB/Todo ID만 정리하고 A/B 스크립트 세션을 local 범위로 로그아웃 |
 
-발제의 캡처 요건을 완료하려면 실제 실습 프로젝트에서 테이블 PK/FK 화면과 세 테이블의 생성/조회/수정/삭제 결과를 촬영하여 이 README에 연결해야 한다. 현재 없는 캡처를 링크하거나 로컬 결과를 Supabase 실행 화면으로 표시하지 않는다.
+실제 CRUD와 회원별 권한 검사는 **publishable key + 로그인한 사용자 세션**으로 실행했다. 서버용 secret 키는 합성 A/B 계정 준비에만 사용했고 CRUD/RLS 검사에는 사용하지 않았다. A/B는 관리자 API에서 이메일 확인 상태를 지정한 실습 계정이므로, 이 결과는 로그인과 데이터 접근 검증이다. 앱 화면의 회원가입이나 확인 이메일 전달 절차를 검증한 것으로 표시하지 않는다.
+
+## 실제 Supabase 실행 증거
+
+실행 대상은 `kant-ch2-practice`의 `wtreqtufnuloqfusshvj.supabase.co`, CRUD/API 실행 시간은 2026-11-16 23:19:37~23:21:17 KST다. [JSONL 실행 로그](evidence/live-verification.jsonl)의 실행 ID는 `0b565c31a4724e8686b8f837d0962dba`다. 세 테이블에서 이번에 생성한 행의 ID는 각각 `2`이며, 동일한 ID를 조회/수정/삭제했다. 로그의 최종 결과는 검증과 정리 모두 `PASS`다.
+
+아래 이미지는 실제 Supabase SQL Editor에서 조회한 화면이다. CRUD 요청은 이 저장소의 `Store`를 호출하는 SDK 검증으로 수행했고, 화면은 그 결과가 원격 DB에 반영되었음을 확인한다. 재현에는 위의 [demo.py](demo.py)를 사용한다. 로그에는 인증키, 비밀번호, 세션 토큰을 기록하지 않았다.
+
+### PK, FK와 RLS 설정
+
+세 실습 테이블에 PK가 각각 1개 있고 RLS가 활성화되어 있다. 주문은 사용자, 회원, 상품을 참조한다. 함께 표시된 `shop_todos`는 같은 실습 프로젝트의 Next Todo 테이블이다.
+
+![실제 Supabase의 테이블별 PK와 FK 수, RLS 활성화 상태](evidence/live-schema.jpg)
+
+회원/상품의 소유자는 `auth.users.id`를 참조하고, 주문은 회원/상품의 ID와 소유자를 복합 FK로 연결한다.
+
+![실제 Supabase 회원, 상품, 주문의 외래 키 연결](evidence/live-foreign-keys.jpg)
+
+### 생성과 조회
+
+회원/상품/주문을 생성한 뒤 복합 FK 조건으로 JOIN하여 조회했다. 회원 ID `2`, 상품 ID `2`, 주문 ID `2`, 가격 `1000`, 수량 `1`, 상태 `pending`을 확인했다. 로그에는 세 테이블의 개별 ID 조회 결과도 포함되어 있다.
+
+![실제 Supabase에 생성된 회원, 상품, 주문을 연결하여 조회한 결과](evidence/live-create-read.jpg)
+
+### 수정과 재조회
+
+같은 상품/주문 ID의 가격이 `1200`, 수량이 `2`, 상태가 `paid`로 변경된 것을 재조회했다. 회원 이름 변경과 상품 재고 `3 → 2` 변경은 실행 로그의 `db_update` 결과에 기록되어 있다.
+
+![실제 Supabase에서 같은 ID의 가격, 수량, 주문 상태 수정 확인](evidence/live-update.jpg)
+
+### 삭제와 재조회
+
+주문을 먼저 삭제한 뒤 상품과 회원을 삭제했다. 이번 실행의 ID `2`를 각 테이블에서 다시 조회한 결과 모두 `0`건이다.
+
+![실제 Supabase에서 이번 실행의 회원, 상품, 주문 삭제 후 각각 0건 확인](evidence/live-delete.jpg)
+
+### COMMIT, ROLLBACK과 CHECK 실패
+
+[live-transaction.sql](evidence/live-transaction.sql)은 실제 Supabase SQL Editor의 같은 실행에서 임시 테이블로 다음 결과를 확인한 보충 배치다.
+
+| 검사 | 확인한 동작 | 결과 |
+| --- | --- | --- |
+| 초기값 | 재고 10 생성 | `10`, 통과 |
+| 명시적 COMMIT | `BEGIN` 후 재고를 8로 변경하고 `COMMIT` | `8` 유지, 통과 |
+| 명시적 ROLLBACK | `BEGIN` 후 재고를 5로 변경하고 `ROLLBACK` | `8` 복구, 통과 |
+| CHECK 실패 | PL/pgSQL 내부 블록에서 재고를 5로 변경한 뒤 -1 변경 시도 | SQLSTATE `23514`, 통과 |
+| 예외 블록 복구 | `check_violation`을 처리하면서 내부 블록의 변경을 취소 | 앞선 5 변경도 취소되어 `8`, 통과 |
+
+마지막 두 검사는 PL/pgSQL `EXCEPTION` 블록의 복구 동작이다. 원본 `transactions.sql`의 실패 구문 실행 후 별도 명령으로 `ROLLBACK`하는 전체 세션 흐름은 위 로컬 검증 범위로 구분한다. 아래 실제 화면에서 보충 배치의 5행 모두 `passed=true`임을 확인할 수 있다.
+
+![실제 Supabase의 COMMIT, 명시적 ROLLBACK, CHECK 실패와 예외 블록 복구 결과 5개 통과](evidence/live-transaction.jpg)
